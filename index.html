@@ -24,18 +24,13 @@
   .nav{background:#fff;border-bottom:.5px solid var(--bs);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:52px}
   .logo{font-size:17px;font-weight:600}
   .logo span{color:var(--t3);font-weight:400}
-  .status{font-size:12px;color:var(--t3);display:flex;align-items:center;gap:8px}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
-  .dot.error{background:var(--red)}
-  .dot.loading{background:var(--orange);animation:pulse 1s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  .status{font-size:12px;color:var(--t3)}
 
   .main{padding:20px 32px;max-width:1440px;margin:0 auto}
   .g{display:grid;gap:12px}
   .g5{grid-template-columns:repeat(5,1fr)}
   .g4{grid-template-columns:repeat(4,1fr)}
   .g3{grid-template-columns:repeat(3,1fr)}
-  .g21{grid-template-columns:2fr 1fr}
   .mb{margin-bottom:20px}
 
   .c{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);border:.5px solid var(--border)}
@@ -43,7 +38,7 @@
   .cs{padding:16px}
   .cl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:6px}
 
-  .kv{font-size:32px;font-weight:700;letter-spacing:-1px}
+  .kv{font-size:32px;font-weight:700}
   .ks{font-size:12px;color:var(--t3);margin-top:4px}
 
   .al{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:10px;font-size:12px;font-weight:500;margin-bottom:8px}
@@ -92,239 +87,75 @@
   .cost-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}
   .cost-row.total{border-top:1px solid var(--bs);padding-top:8px;margin-top:4px;font-weight:600}
   .cost-label{color:var(--t3)} .cost-val{font-family:monospace;font-weight:500}
-
   .chw{height:150px}
 
-  .li{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border)}
-  .li:last-child{border-bottom:0}
-  .li-d{width:7px;height:7px;border-radius:50%;margin-top:5px}
-  .li-c{flex:1;font-size:11px} .li-c strong{color:var(--t1)}
-  .li-t{font-size:9px;color:var(--t4)}
-
-  .loading,.error{text-align:center;padding:40px}
-  .error{color:var(--red)}
-  .retry{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;margin-top:10px}
-
-  @media(max-width:1100px){.g5,.g4{grid-template-columns:repeat(2,1fr)}.g3,.g21{grid-template-columns:1fr}}
+  @media(max-width:1100px){.g5,.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
 <div class="nav">
   <div class="logo">益成金屬 <span>DICAS</span></div>
-  <div class="status"><div class="dot loading" id="dot"></div><span id="status">載入中...</span></div>
+  <div class="status">🟢 Demo 模式 — 2026-03-15</div>
 </div>
 
-<div class="main" id="app">
-  <div class="loading">正在從 Notion 載入資料...</div>
-</div>
+<div class="main">
 
-<script>
-// ===== 請在這裡填入你的 Notion API Key =====
-const NOTION_KEY = 'ntn_t78195551133gIzw9AlATJmMEP3pgCvge4WVmkcQjfQ3Vc';
-
-const DB = {
-  brands: '3241d214-f129-816f-9b41-f860b23b96f9',
-  parts: '3241d214-f129-81e6-9c18-e1f4a84a541f',
-  outsource: '3241d214-f129-8123-a4c4-cf6f7699b9a8',
-  suppliers: '3241d214-f129-814a-8f88-e0da4a69c28b',
-  issues: '3241d214-f129-811e-9e93-d5a8a0e3842a',
-};
-
-const NOTION_API = 'https://api.notion.com/v1';
-
-async function queryDB(dbId, filter = {}) {
-  const res = await fetch(`${NOTION_API}/databases/${dbId}/query`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${NOTION_KEY}`,
-      'Notion-Version': '2022-06-28',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ filter })
-  });
-  if (!res.ok) throw new Error(`Notion API Error: ${res.status}`);
-  return res.json();
-}
-
-async function getPage(pageId) {
-  const res = await fetch(`${NOTION_API}/pages/${pageId}`, {
-    headers: {
-      'Authorization': `Bearer ${NOTION_KEY}`,
-      'Notion-Version': '2022-06-28'
-    }
-  });
-  if (!res.ok) return null;
-  return res.json();
-}
-
-function getText(prop) {
-  return prop?.rich_text?.[0]?.plain_text || '';
-}
-
-function getSelect(prop) {
-  return prop?.select?.name || '';
-}
-
-function getNumber(prop) {
-  return prop?.number || 0;
-}
-
-function getMultiSelect(prop) {
-  return prop?.multi_select?.map(x => x.name) || [];
-}
-
-let yieldChart = null;
-
-async function loadDashboard() {
-  try {
-    document.getElementById('status').textContent = '載入中...';
-    document.getElementById('dot').className = 'dot loading';
-    
-    const [brands, parts, outsource, suppliers, issues] = await Promise.all([
-      queryDB(DB.brands),
-      queryDB(DB.parts),
-      queryDB(DB.outsource),
-      queryDB(DB.suppliers),
-      queryDB(DB.issues, { property: 'status', select: { does_not_equal: '已結案' } })
-    ]);
-
-    // 處理供應商
-    const supplierData = suppliers.results.map(p => ({
-      name: getText(p.properties.supplier_name),
-      capacity: getNumber(p.properties.monthly_capacity),
-      aliases: getMultiSelect(p.properties.aliases)
-    }));
-
-    // 處理外包追蹤
-    const outsourceData = await Promise.all(outsource.results.map(async p => {
-      let supplier = '未知', part = '未知';
-      try {
-        if (p.properties.supplier_id?.relation?.[0]?.id) {
-          const s = await getPage(p.properties.supplier_id.relation[0].id);
-          supplier = s ? getText(s.properties.supplier_name) : '未知';
-        }
-        if (p.properties.part_id?.relation?.[0]?.id) {
-          const pt = await getPage(p.properties.part_id.relation[0].id);
-          part = pt ? getText(pt.properties.part_name) : '未知';
-        }
-      } catch(e) {}
-      return {
-        supplier, part,
-        qty: getNumber(p.properties.sent_qty),
-        status: getSelect(p.properties.status)
-      };
-    }));
-
-    // 處理零件
-    const partsData = parts.results.map(p => ({
-      name: getText(p.properties.part_name),
-      number: getText(p.properties.part_number),
-      stock: getNumber(p.properties.stock_qty),
-      safety: getNumber(p.properties.safety_stock),
-      aliases: getMultiSelect(p.properties.aliases)
-    }));
-
-    // 處理異常
-    const issuesData = issues.results.map(p => ({
-      id: p.id,
-      type: getSelect(p.properties.issue_type),
-      severity: getSelect(p.properties.severity),
-      status: getSelect(p.properties.status),
-      description: getText(p.properties.description)
-    }));
-
-    const brandsData = brands.results.map(p => ({
-      name: getText(p.properties.brand_name),
-      contact: getText(p.properties.contact_person),
-      status: getSelect(p.properties.status)
-    }));
-
-    render({ brands: brandsData, parts: partsData, outsource: outsourceData, suppliers: supplierData, issues: issuesData });
-    
-    document.getElementById('status').textContent = '已更新 ' + new Date().toLocaleTimeString('zh-TW');
-    document.getElementById('dot').className = 'dot';
-  } catch (e) {
-    document.getElementById('status').textContent = '錯誤';
-    document.getElementById('dot').className = 'dot error';
-    document.getElementById('app').innerHTML = `
-      <div class="error">
-        載入失敗: ${e.message}<br>
-        <button class="retry" onclick="loadDashboard()">重試</button>
-      </div>`;
-  }
-}
-
-function render(data) {
-  const { brands, parts, outsource, suppliers, issues } = data;
-  
-  const zeroStock = parts.filter(p => p.stock === 0).length;
-  const inTransit = outsource.reduce((sum, o) => sum + o.qty, 0);
-  const openIssues = issues.length;
-
-  document.getElementById('app').innerHTML = `
-${openIssues > 0 ? `<div class="al d"><span class="al-ico">⚠️</span><div class="al-t"><strong>${openIssues} 筆異常</strong>待處理</div></div>` : ''}
-${zeroStock > 0 ? `<div class="al d"><span class="al-ico">🔴</span><div class="al-t"><strong>${zeroStock} 項零件</strong>庫存為零</div></div>` : ''}
+<div class="al d"><span class="al-ico">⚠️</span><div class="al-t"><strong>芳如</strong> 1 筆外包逾期未回報 — 阿昌 PenN 筆夾</div><div class="al-b" style="background:rgba(255,59,48,.1)">逾期 2 天</div></div>
+<div class="al w"><span class="al-ico">📅</span><div class="al-t">明天要去<strong>小林噴砂</strong>取回花生主體毛胚</div><div class="al-b" style="background:rgba(255,149,0,.15)">明天</div></div>
+<div class="al d"><span class="al-ico">🔴</span><div class="al-t"><strong>3 項零件</strong>庫存為零 — 紙罐、塑膠袋、說明書</div><div class="al-b" style="background:rgba(255,59,48,.1)">需採購</div></div>
 
 <div class="g g5 mb">
-  <div class="c cp"><div class="cl">零件總數</div><div class="kv">${parts.length}</div><div class="ks">已建立</div></div>
-  <div class="c cp"><div class="cl">外包中</div><div class="kv" style="color:var(--orange)">${inTransit}</div><div class="ks">件</div></div>
-  <div class="c cp"><div class="cl">未解決異常</div><div class="kv" style="color:var(--red)">${openIssues}</div><div class="ks">筆</div></div>
-  <div class="c cp"><div class="cl">品牌數</div><div class="kv">${brands.length}</div><div class="ks">個</div></div>
-  <div class="c cp"><div class="cl">外包廠</div><div class="kv">${suppliers.length}</div><div class="ks">家</div></div>
+  <div class="c cp"><div class="cl">進行中工單</div><div class="kv">5</div><div class="ks">粹美 3 ・ 岸頭 2</div></div>
+  <div class="c cp"><div class="cl">本月目標</div><div class="kv" style="color:var(--blue)">8,500</div><div class="ks">件</div></div>
+  <div class="c cp"><div class="cl">整體良率</div><div class="kv" style="color:var(--green)">98.1%</div><div class="ks">▲ 正常</div></div>
+  <div class="c cp"><div class="cl">外包中</div><div class="kv" style="color:var(--orange)">11,575</div><div class="ks">件</div></div>
+  <div class="c cp"><div class="cl">未解決異常</div><div class="kv" style="color:var(--red)">2</div><div class="ks">筆</div></div>
 </div>
 
 <div class="g g4 mb">
-  ${brands.map(b => `
-  <div class="c bc">
-    <div class="bi" style="background:var(--${b.name.includes('粹美')?'orange':b.name.includes('岸頭')?'blue':b.name.includes('風管')?'teal':'purple'}-bg);color:var(--${b.name.includes('粹美')?'orange':b.name.includes('岸頭')?'blue':b.name.includes('風管')?'teal':'purple'})">${b.name.includes('粹美')?'🦶':b.name.includes('岸頭')?'✒️':b.name.includes('風管')?'🔧':'⭐'}</div>
-    <div style="flex:1"><div class="bn">${b.name}</div><div class="bsub">${b.contact || '待建立'}</div></div>
-    <div class="bst"><div class="bnum" style="color:var(--t4)">${b.status}</div></div>
-  </div>`).join('')}
+  <div class="c bc"><div class="bi" style="background:var(--orange-bg);color:var(--orange)">🦶</div><div style="flex:1"><div class="bn">粹美 Cuimei</div><div class="bsub">踩踩獸 ・ 珮瑄</div></div><div class="bst"><div class="bnum" style="color:var(--orange)">3</div><div class="bsub">工單</div></div></div>
+  <div class="c bc"><div class="bi" style="background:var(--blue-bg);color:var(--blue)">✒️</div><div style="flex:1"><div class="bn">岸頭 Antou</div><div class="bsub">PenN 筆類 ・ 芳如</div></div><div class="bst"><div class="bnum" style="color:var(--blue)">2</div><div class="bsub">工單</div></div></div>
+  <div class="c bc"><div class="bi" style="background:var(--teal-bg);color:#0891b2">🔧</div><div style="flex:1"><div class="bn">風管</div><div class="bsub">待補充 ・ 宋姐</div></div><div class="bst"><div class="bnum" style="color:var(--t4)">0</div><div class="bsub">工單</div></div></div>
+  <div class="c bc"><div class="bi" style="background:var(--purple-bg);color:var(--purple)">⭐</div><div style="flex:1"><div class="bn">DICAS</div><div class="bsub">益成自有 ・ 珮瑄</div></div><div class="bst"><div class="bnum" style="color:var(--t4)">0</div><div class="bsub">工單</div></div></div>
 </div>
 
 <div class="g g3 mb">
   <div class="c cs">
-    <div class="cl">零件庫存 (前${Math.min(parts.length, 10)})</div>
-    ${parts.slice(0,10).map(p => `
-    <div class="ir">
-      <div class="ir-s">${p.stock===0?'<span style="color:var(--red)">!</span>':p.stock<p.safety?'<span style="color:var(--orange)">⏳</span>':'<span style="color:var(--green)">✓</span>'}</div>
-      <div class="ir-n">${p.name} <span class="ir-c">${p.number}</span></div>
-      <div class="ir-bg"><div class="ir-f" style="width:${p.safety?Math.min(p.stock/p.safety*100,100):100}%;background:var(--${p.stock===0?'red':p.stock<p.safety?'orange':'green'})"></div></div>
-      <div class="ir-q">${p.stock}</div>
-    </div>`).join('')}
+    <div class="cl">零件庫存</div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--red)">!</span></div><div class="ir-n">花生主體毛胚 <span class="ir-c">CM-R-001</span></div><div class="ir-bg"><div class="ir-f" style="width:0%;background:var(--red)"></div></div><div class="ir-q">0</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--red)">!</span></div><div class="ir-n">花生尖頭 <span class="ir-c">CM-P-004</span></div><div class="ir-bg"><div class="ir-f" style="width:0%;background:var(--red)"></div></div><div class="ir-q">0</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--orange)">⏳</span></div><div class="ir-n">花生平頭 <span class="ir-c">CM-P-005</span></div><div class="ir-bg"><div class="ir-f" style="width:0%;background:var(--orange)"></div></div><div class="ir-q">0</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--green)">✓</span></div><div class="ir-n">矽膠圈 <span class="ir-c">CM-K-001</span></div><div class="ir-bg"><div class="ir-f" style="width:100%;background:var(--green)"></div></div><div class="ir-q">15,000</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--green)">✓</span></div><div class="ir-n">車袋 <span class="ir-c">CM-K-002</span></div><div class="ir-bg"><div class="ir-f" style="width:100%;background:var(--green)"></div></div><div class="ir-q">2,000</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--red)">!</span></div><div class="ir-n">紙罐 <span class="ir-c">CM-K-004</span></div><div class="ir-bg"><div class="ir-f" style="width:0%;background:var(--red)"></div></div><div class="ir-q">0</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--red)">!</span></div><div class="ir-n">塑膠袋 <span class="ir-c">CM-K-005</span></div><div class="ir-bg"><div class="ir-f" style="width:0%;background:var(--red)"></div></div><div class="ir-q">0</div></div>
+    <div class="ir"><div class="ir-s"><span style="color:var(--red)">!</span></div><div class="ir-n">說明書 <span class="ir-c">CM-K-008</span></div><div class="ir-bg"><div class="ir-f" style="width:0%;background:var(--red)"></div></div><div class="ir-q">0</div></div>
   </div>
 
   <div class="c cs">
     <div class="cl">外包追蹤</div>
-    ${outsource.length ? outsource.slice(0,6).map(o => `
-    <div class="or">
-      <div class="oa" style="background:var(--${o.status==='異常'?'red':o.status==='加工中'?'orange':'blue'}-bg);color:var(--${o.status==='異常'?'red':o.status==='加工中'?'orange':'blue'})">${o.supplier[0]}</div>
-      <div class="oi"><div class="on">${o.supplier} — ${o.part}</div><div class="od">${o.qty} 件</div></div>
-      <div class="ox"><div class="ov" style="color:var(--${o.status==='異常'?'red':'t3'})">${o.status}</div></div>
-    </div>`).join('') : '<div style="color:var(--t3);padding:20px">無外包資料</div>'}
+    <div class="or"><div class="oa" style="background:var(--orange-bg);color:#b36800">小</div><div class="oi"><div class="on">小林 — 毛胚</div><div class="od">5,100 件</div></div><div class="ox"><div class="ov" style="color:var(--orange)">1天</div></div></div>
+    <div class="or"><div class="oa" style="background:var(--blue-bg);color:var(--blue)">黑</div><div class="oi"><div class="on">黑豬 — 尖頭</div><div class="od">5,500 件</div></div><div class="ox"><div class="ov" style="color:var(--t3)">7天</div></div></div>
+    <div class="or"><div class="oa" style="background:var(--red-bg);color:var(--red)">阿</div><div class="oi"><div class="on">阿昌 — 筆夾</div><div class="od">975 件</div></div><div class="ox"><div class="ov" style="color:var(--red)">逾期</div></div></div>
+    <div class="or"><div class="oa" style="background:var(--purple-bg);color:var(--purple)">阿</div><div class="oi"><div class="on">阿昌 — 筆蓋</div><div class="od">3,000 件</div></div><div class="ox"><div class="ov" style="color:var(--t3)">5天</div></div></div>
   </div>
 
   <div class="c cs">
     <div class="cl">外包廠負載</div>
-    ${suppliers.map(s => `
-    <div class="cap-row">
-      <div class="cap-name">${s.name}</div>
-      <div class="cap-bar-bg"><div class="cap-bar" style="width:${s.capacity?Math.min((Math.random()*40+50),100):0}%;background:var(--${s.capacity>90?'red':s.capacity>70?'orange':'green'})"></div></div>
-      <div class="cap-pct" style="color:var(--${s.capacity>90?'red':s.capacity>70?'orange':'green'})">${s.capacity?Math.floor(s.capacity*0.7)+'%':'N/A'}</div>
-    </div>`).join('')}
+    <div class="cap-row"><div class="cap-name">家佑車銑</div><div class="cap-bar-bg"><div class="cap-bar" style="width:72%;background:var(--orange)"></div></div><div class="cap-pct" style="color:var(--orange)">72%</div></div>
+    <div class="cap-row"><div class="cap-name">黑豬車銑</div><div class="cap-bar-bg"><div class="cap-bar" style="width:85%;background:var(--red)"></div></div><div class="cap-pct" style="color:var(--red)">85%</div></div>
+    <div class="cap-row"><div class="cap-name">小林噴砂</div><div class="cap-bar-bg"><div class="cap-bar" style="width:64%;background:var(--green)"></div></div><div class="cap-pct" style="color:var(--green)">64%</div></div>
+    <div class="cap-row"><div class="cap-name">阿昌陽極</div><div class="cap-bar-bg"><div class="cap-bar" style="width:92%;background:var(--red)"></div></div><div class="cap-pct" style="color:var(--red)">92%</div></div>
+    <div class="cap-row"><div class="cap-name">良浩超音波</div><div class="cap-bar-bg"><div class="cap-bar" style="width:30%;background:var(--green)"></div></div><div class="cap-pct" style="color:var(--green)">30%</div></div>
   </div>
 </div>
 
 <div class="g g3 mb">
   <div class="c cs">
-    <div class="cl">異常紀錄 <span style="color:var(--red)">${issues.length}</span></div>
-    ${issues.length ? issues.slice(0,4).map(i => `
-    <div class="issue">
-      <div class="issue-sev" style="background:var(--${i.severity==='嚴重'?'red':i.severity==='中等'?'orange':'yellow'})"></div>
-      <div class="issue-txt"><strong>#${i.id.slice(0,8)}</strong> ${i.type}<br><span style="color:var(--t3)">${i.description?.slice(0,30)||''}</span></div>
-      <div class="tg" style="background:var(--${i.status==='待處理'?'red':i.status==='處理中'?'orange':'green'}-bg;color:var(--${i.status==='待處理'?'red':i.status==='處理中'?'orange':'green'})">${i.status}</div>
-    </div>`).join('') : '<div style="color:var(--t3);padding:20px">無異常</div>'}
+    <div class="cl">異常紀錄 <span style="color:var(--red)">2</span></div>
+    <div class="issue"><div class="issue-sev" style="background:var(--red)"></div><div class="issue-txt"><strong>#ISS-003</strong> 阿昌逾期<br><span style="color:var(--t3)">芳如</span></div><div class="tg" style="background:var(--red-bg);color:var(--red)">待處理</div></div>
+    <div class="issue"><div class="issue-sev" style="background:var(--orange)"></div><div class="issue-txt"><strong>#ISS-002</strong> 庫存不足<br><span style="color:var(--t3)">珮瑄</span></div><div class="tg" style="background:var(--orange-bg);color:var(--orange)">處理中</div></div>
   </div>
 
   <div class="c cs">
@@ -342,18 +173,15 @@ ${zeroStock > 0 ? `<div class="al d"><span class="al-ico">🔴</span><div class=
     <div class="chw"><canvas id="yieldChart"></canvas></div>
   </div>
 </div>
-  `;
 
-  if (yieldChart) yieldChart.destroy();
-  yieldChart = new Chart(document.getElementById('yieldChart').getContext('2d'),{
-    type:'bar',
-    data:{labels:['車銑','噴砂','QC','陽極','組裝','包裝'],datasets:[{label:'實際',data:[98.1,99,97.5,98,99,100],backgroundColor:'rgba(52,199,89,.55)',borderRadius:4},{label:'預期',data:[98,99,97,98,99,100],backgroundColor:'rgba(0,0,0,.05)',borderRadius:4}]},
-    options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:95,max:101},x:{grid:{display:false}}},plugins:{legend:{labels:{color:'#86868b',font:{size:9}}}}}}
-  });
-}
+</div>
 
-loadDashboard();
-setInterval(loadDashboard, 60000);
+<script>
+new Chart(document.getElementById('yieldChart').getContext('2d'),{
+  type:'bar',
+  data:{labels:['車銑','噴砂','QC','陽極','組裝','包裝'],datasets:[{label:'實際',data:[98.1,99,97.5,98,99,100],backgroundColor:'rgba(52,199,89,.55)',borderRadius:4},{label:'預期',data:[98,99,97,98,99,100],backgroundColor:'rgba(0,0,0,.05)',borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:95,max:101},x:{grid:{display:false}}},plugins:{legend:{labels:{color:'#86868b',font:{size:9}}}}}}
+});
 </script>
 
 </body>
